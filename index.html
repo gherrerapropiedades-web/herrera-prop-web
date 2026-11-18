@@ -7,7 +7,7 @@
     <link rel="canonical" href="https://herreraprop.com/">
     <meta property="og:site_name" content="Herrera Estudio Inmobiliario">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://herreraprop.com/">
+    <meta property="og:url" content="https://herreraprop.com/">\n    <meta property="og:title" content="Herrera Estudio Inmobiliario">\n    <meta property="og:description" content="Propiedades en venta y alquiler en Don Torcuato y alrededores.">
     <link rel="icon" type="image/x-icon" href="/favicon-herrera-original.ico">
     <link rel="icon" type="image/png" sizes="1024x1024" href="/favicon-herrera-original.png">
     <title>Herrera Inmobiliaria | Don Torcuato | C.S.I 6219</title>
@@ -106,12 +106,17 @@
 
             // Si se ingresa mediante un enlace compartido, abrir directamente esa propiedad.
             const sharedId = new URLSearchParams(window.location.search).get('prop');
-            if (sharedId && !window.__sharedPropertyOpened) {
-                const sharedProperty = cachedProperties.find(p => String(p.id) === String(sharedId));
-                if (sharedProperty) {
-                    window.__sharedPropertyOpened = true;
-                    openDetailModal(sharedProperty.id, false);
-                }
+            const currentPath = window.location.pathname;
+            const pathProperty = currentPath.startsWith('/propiedades/')
+                ? cachedProperties.find(p => new URL(getPropertySeoUrl(p)).pathname === currentPath)
+                : null;
+            const initialProperty = sharedId
+                ? cachedProperties.find(p => String(p.id) === String(sharedId))
+                : pathProperty;
+            if (initialProperty && !window.__sharedPropertyOpened) {
+                window.__sharedPropertyOpened = true;
+                openDetailModal(initialProperty.id, false);
+                updatePropertyPageMetadata(initialProperty);
             }
         }
 
@@ -296,21 +301,93 @@
             const shareText = `Mirá esta propiedad de Herrera Inmobiliaria: ${prop.title} - ${formattedPrice} ${shareUrl}`;
             document.getElementById('detail-share-btn').href = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
             if (updateAddress) {
-                const url = new URL(window.location.href);
-                url.searchParams.set('prop', prop.id);
-                window.history.replaceState({}, '', url);
+                const seoUrl = getPropertySeoUrl(prop);
+                if (window.location.pathname !== new URL(seoUrl).pathname) {
+                    window.history.pushState({ propertyModal: true, propertyId: String(prop.id) }, '', seoUrl);
+                }
+                updatePropertyPageMetadata(prop);
             }
 
             document.getElementById('modal-detail').classList.remove('hidden');
         }
 
-        function closeDetailModal() {
+        function updatePropertyPageMetadata(prop) {
+            const title = `${prop.title || 'Propiedad'} | ${prop.operation || 'Inmueble'} en ${prop.locality || prop.location || 'Buenos Aires'} | Herrera Inmobiliaria`;
+            document.title = title;
+            const description = `${prop.title || 'Propiedad'} ${prop.operation || ''} en ${prop.locality || prop.location || 'Buenos Aires'}. Consultá precio, fotos y detalles con Herrera Inmobiliaria.`;
+            let metaDescription = document.querySelector('meta[name="description"]');
+            if (metaDescription) metaDescription.setAttribute('content', description);
+            let canonical = document.querySelector('link[rel="canonical"]');
+            if (canonical) canonical.setAttribute('href', getPropertySeoUrl(prop));
+            let ogUrl = document.querySelector('meta[property="og:url"]');
+            if (ogUrl) ogUrl.setAttribute('content', getPropertySeoUrl(prop));
+            let ogTitle = document.querySelector('meta[property="og:title"]');
+            if (!ogTitle) {
+                ogTitle = document.createElement('meta');
+                ogTitle.setAttribute('property', 'og:title');
+                document.head.appendChild(ogTitle);
+            }
+            ogTitle.setAttribute('content', title);
+            let ogDescription = document.querySelector('meta[property="og:description"]');
+            if (!ogDescription) {
+                ogDescription = document.createElement('meta');
+                ogDescription.setAttribute('property', 'og:description');
+                document.head.appendChild(ogDescription);
+            }
+            ogDescription.setAttribute('content', description);
+        }
+
+        function restoreHomeMetadata() {
+            document.title = 'Herrera Inmobiliaria | Don Torcuato | C.S.I 6219';
+            const canonical = document.querySelector('link[rel="canonical"]');
+            if (canonical) canonical.setAttribute('href', 'https://herreraprop.com/');
+            const ogUrl = document.querySelector('meta[property="og:url"]');
+            if (ogUrl) ogUrl.setAttribute('content', 'https://herreraprop.com/');
+            const ogTitle = document.querySelector('meta[property="og:title"]');
+            if (ogTitle) ogTitle.setAttribute('content', 'Herrera Estudio Inmobiliario');
+            const ogDescription = document.querySelector('meta[property="og:description"]');
+            if (ogDescription) ogDescription.setAttribute('content', 'Propiedades en venta y alquiler en Don Torcuato y alrededores.');
+        }
+
+        function hideDetailModal() {
             stopDetailGalleryTimer();
             document.getElementById('modal-detail').classList.add('hidden');
-            const url = new URL(window.location.href);
-            url.searchParams.delete('prop');
-            window.history.replaceState({}, '', url);
+            restoreHomeMetadata();
         }
+
+        function closeDetailModal() {
+            const url = new URL(window.location.href);
+            if (url.pathname.startsWith('/propiedades/')) {
+                // Volver a la entrada anterior del historial (el catálogo).
+                if (window.history.state && window.history.state.propertyModal) {
+                    window.history.back();
+                    return;
+                }
+                window.history.replaceState({}, '', '/');
+            } else if (url.searchParams.has('prop')) {
+                url.searchParams.delete('prop');
+                window.history.replaceState({}, '', url);
+            }
+            hideDetailModal();
+        }
+
+        window.addEventListener('popstate', () => {
+            const path = window.location.pathname;
+            const sharedId = new URLSearchParams(window.location.search).get('prop');
+            if (path.startsWith('/propiedades/')) {
+                const prop = cachedProperties.find(p => new URL(getPropertySeoUrl(p)).pathname === path);
+                if (prop) openDetailModal(prop.id, false);
+                return;
+            }
+            if (sharedId) {
+                const prop = cachedProperties.find(p => String(p.id) === String(sharedId));
+                if (prop) {
+                    openDetailModal(prop.id, false);
+                    return;
+                }
+            }
+            hideDetailModal();
+        });
 
         function handleTasacionSubmit(e) {
             e.preventDefault();
