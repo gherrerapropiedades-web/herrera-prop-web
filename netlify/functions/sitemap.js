@@ -6,7 +6,7 @@ function slug(p) { return `${slugify(p.property_type || p['property type'] || p.
 exports.handler = async () => {
   try {
     if (!SUPABASE_ANON_KEY) throw new Error('Falta SUPABASE_ANON_KEY');
-    const url = `${SUPABASE_URL}/rest/v1/properties?select=id,title,location,locality,operation,property_type,type,is_visible,created_at&is_visible=eq.true&order=created_at.desc`;
+    const url = `${SUPABASE_URL}/rest/v1/properties?select=id,title,location,locality,operation,property_type,is_visible,created_at&is_visible=eq.true&order=created_at.desc`;
     const r = await fetch(url,{headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`}});
     if (!r.ok) throw new Error(`Supabase ${r.status}`);
     const rows = await r.json();
