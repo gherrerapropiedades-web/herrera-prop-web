@@ -1,0 +1,12 @@
+HERRERA - ORDENAMIENTO MANUAL
+
+Incluye:
+- Ordenar fotos existentes arrastrándolas con el mouse; se conservan los botones Subir, Bajar y Hacer principal.
+- Ordenar propiedades desde el administrador arrastrando cada publicación.
+- El orden se guarda en Supabase y la web pública lo respeta.
+- Las propiedades nuevas comienzan con prioridad superior; las existentes conservan inicialmente el orden cronológico que ya tenían.
+
+IMPORTANTE:
+1. Antes de publicar estos archivos, ejecutar una sola vez el archivo SQL_ordenamiento_propiedades.sql en Supabase > SQL Editor.
+2. Luego desplegar el contenido de esta carpeta en el mismo proyecto de Netlify.
+3. No crear otro sitio ni borrar el actual.

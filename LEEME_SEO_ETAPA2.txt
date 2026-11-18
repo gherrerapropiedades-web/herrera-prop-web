@@ -1,0 +1,32 @@
+HERRERA PROP - SEO ETAPA 2 (FICHAS INDIVIDUALES)
+
+QUÉ INCLUYE
+- index.html: conserva el diseño actual y comparte las fichas usando URLs descriptivas.
+- netlify/functions/property.js: entrega HTML con título, descripción, canonical, Open Graph y datos estructurados para cada propiedad.
+- netlify/functions/sitemap.js: genera sitemap dinámico con la portada y las propiedades visibles.
+- netlify.toml: enruta /propiedades/... y /sitemap.xml a las funciones de Netlify.
+- admin.html, favicons y SQL original como respaldo/base de trabajo.
+
+ANTES DE PUBLICAR
+1. Hacé una copia/descarga del sitio actual de Netlify.
+2. En Netlify > Site configuration > Environment variables, agregá:
+   SUPABASE_URL = https://bfnsinnvotiwvqttriqc.supabase.co
+   SUPABASE_ANON_KEY = la misma clave anon/public que ya utiliza el index.html actual.
+   No uses service_role ni ninguna clave secreta.
+3. Confirmá que la política RLS de Supabase permita SELECT público sobre properties para las filas que tengan is_visible = true. Las funciones consultan is_visible=eq.true.
+4. Desplegá el CONTENIDO de esta carpeta en el MISMO sitio de Netlify. No crees un sitio nuevo.
+
+PRUEBAS DESPUÉS DEL DEPLOY
+A) https://herreraprop.com/ debe mostrar la portada normalmente.
+B) https://herreraprop.com/sitemap.xml debe mostrar XML e incluir una URL por propiedad visible.
+C) Una ficha debe abrir con /propiedades/slug... y mostrar su contenido aun sin JavaScript del navegador.
+D) El enlace antiguo https://herreraprop.com/?prop=ID debe seguir abriendo el modal actual.
+E) /admin.html debe seguir abriendo el panel actual.
+
+IMPORTANTE
+- No ejecutar nuevamente SQL_ordenamiento_propiedades.sql si ya se ejecutó antes.
+- El panel admin no necesita cambios para esta etapa.
+- Las fichas dinámicas solo se generan para registros is_visible=true. El panel actual guarda nuevas propiedades con is_visible=true.
+- Si la tabla no permite SELECT público o falta la variable SUPABASE_ANON_KEY, sitemap/fichas devolverán error; no publiques hasta configurar y probar.
+- El sitemap no se envía de nuevo a Search Console hasta verificar que contiene las URLs individuales.
+- Este paquete no se ha desplegado en tu Netlify; es una versión de prueba preparada para revisión.

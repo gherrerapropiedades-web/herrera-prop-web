@@ -1,0 +1,15 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/sitemap.xml"
+  to = "/.netlify/functions/sitemap"
+  status = 200
+
+[[redirects]]
+  from = "/propiedades/*"
+  to = "/.netlify/functions/property/:splat"
+  status = 200
+
+# Conserva el sitio de una sola página y los enlaces antiguos ?prop=ID.

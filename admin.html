@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="/favicon-herrera-original.ico">
+    <link rel="icon" type="image/png" sizes="1024x1024" href="/favicon-herrera-original.png">
+    <title>Panel de Administración | Herrera Estudio Inmobiliario</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            navy: '#0C2340',
+                            navyDark: '#071527',
+                            creamLight: '#FAF8F5',
+                            creamCard: '#F3EFE7',
+                            bronze: '#A36D3B',
+                            bronzeDark: '#8B5A2B',
+                            goldText: '#D19E66',
+                        }
+                    },
+                    fontFamily: {
+                        garamond: ['"EB Garamond"', 'serif'],
+                        sans: ['Montserrat', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #FAF8F5 !important; font-family: 'Montserrat', sans-serif; color: #2D3748; }
+        .font-serif-title { font-family: 'EB Garamond', serif; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#FAF8F5]">
+
+    <!-- HEADER ADMIN -->
+    <header class="bg-brand-navy text-white shadow-lg border-b-2 border-brand-bronze">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <a href="index.html" class="flex items-center space-x-3 group">
+                <div class="w-12 h-12 border-2 border-brand-bronze rounded-lg flex items-center justify-center p-1 bg-brand-navyDark">
+                    <span class="font-serif-title text-2xl font-bold text-white">H</span>
+                </div>
+                <div class="flex flex-col">
+                    <span class="font-serif-title text-xl tracking-widest text-white font-bold leading-tight">PANEL ADMIN</span>
+                    <span class="text-[9px] tracking-[0.22em] text-brand-goldText font-medium uppercase">Herrera Estudio Inmobiliario</span>
+                </div>
+            </a>
+            <nav class="flex items-center space-x-4">
+                <a href="index.html" class="text-sm font-medium hover:text-brand-goldText transition-colors">Ver Sitio Web</a>
+                <button id="btnLogout" onclick="logout()" class="hidden text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg transition">Cerrar Sesión</button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="max-w-5xl mx-auto px-4 py-10 flex-grow w-full">
+
+        <!-- PASO 1: LOGIN CON SUPABASE AUTH -->
+        <section id="loginSection" class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl border border-brand-bronze/30">
+            <div class="text-center mb-6">
+                <i class="fas fa-lock text-3xl text-brand-bronze mb-2"></i>
+                <h2 class="font-serif-title text-2xl font-bold text-brand-navy">Acceso Restringido</h2>
+                <p class="text-xs text-gray-500 mt-1">Ingresá con tu cuenta autorizada de Supabase</p>
+            </div>
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-brand-navy mb-1">Correo Electrónico</label>
+                    <input id="loginEmail" type="email" required class="w-full px-3 py-2.5 border rounded-lg text-sm focus:border-brand-bronze focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-brand-navy mb-1">Contraseña</label>
+                    <input id="loginPassword" type="password" required class="w-full px-3 py-2.5 border rounded-lg text-sm focus:border-brand-bronze focus:outline-none">
+                </div>
+                <button type="submit" id="btnLogin" class="w-full bg-brand-navy hover:bg-brand-navyDark text-white font-bold py-3 rounded-lg text-sm transition shadow">
+                    Ingresar al Panel
+                </button>
+                <p id="loginError" class="text-xs text-red-600 text-center hidden mt-2"></p>
+            </form>
+        </section>
+
+        <!-- PASO 2: PANEL DE GESTIÓN -->
+        <section id="adminPanel" class="hidden space-y-8">
+            <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-brand-bronze/30">
+                <h2 id="formTitle" class="font-serif-title text-2xl font-bold text-brand-navy mb-6 pb-2 border-b border-brand-bronze/20">Publicar Nueva Propiedad</h2>
+                <p id="editNotice" class="hidden mb-4 rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800">Estás editando una propiedad existente. Los cambios se guardarán en esa ficha.</p>
+                
+                <form id="propertyForm" onsubmit="handleCreateProperty(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Título de la Propiedad</label>
+                            <input id="propTitle" type="text" required placeholder="Ej: Hermosa Casa en Don Torcuato" class="w-full p-2.5 text-xs border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Ubicación / Dirección</label>
+                            <input id="propLocation" type="text" required placeholder="Ej: Av. Alvear al 1300" class="w-full p-2.5 text-xs border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Localidad</label>
+                            <select id="propLocality" class="w-full p-2.5 text-xs border rounded-lg">
+                                <option value="">Seleccionar localidad</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Operación</label>
+                            <select id="propOperation" class="w-full p-2.5 text-xs border rounded-lg">
+                                <option value="Venta">Venta</option>
+                                <option value="Alquiler">Alquiler</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Tipo de Inmueble</label>
+                            <select id="propType" class="w-full p-2.5 text-xs border rounded-lg">
+                                <option value="Casa">Casa</option>
+                                <option value="Departamento">Departamento</option>
+                                <option value="PH">PH</option>
+                                <option value="Terreno">Terreno / Lote</option>
+                                <option value="Local">Local</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Moneda</label>
+                            <select id="propCurrency" class="w-full p-2.5 text-xs border rounded-lg">
+                                <option value="USD">USD</option>
+                                <option value="ARS">ARS</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Estado comercial</label>
+                            <select id="propStatus" class="w-full p-2.5 text-xs border rounded-lg">
+                                <option value="">Disponible / sin etiqueta</option>
+                                <option value="Reservado">Reservado</option>
+                                <option value="Alquilado">Alquilado</option>
+                                <option value="Vendido">Vendido</option>
+                                <option value="En negociación">En negociación</option>
+                                <option value="Apto crédito">Apto crédito</option>
+                                <option value="Financiación">Financiación</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Precio (Número)</label>
+                            <input id="propPrice" type="number" required placeholder="150000" class="w-full p-2.5 text-xs border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Ambientes</label>
+                            <input id="propRooms" type="number" placeholder="3" class="w-full p-2.5 text-xs border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Dormitorios</label>
+                            <input id="propBedrooms" type="number" placeholder="2" class="w-full p-2.5 text-xs border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Superficie Total (m²)</label>
+                            <input id="propSurface" type="number" placeholder="120" class="w-full p-2.5 text-xs border rounded-lg">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Descripción Completa</label>
+                        <textarea id="propDescription" rows="3" placeholder="Detalles de la propiedad..." class="w-full p-2.5 text-xs border rounded-lg"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Imágenes de la Propiedad (podés agregar más al editar)</label>
+                        <input id="propImages" type="file" multiple accept="image/*" class="w-full p-2 text-xs border rounded-lg bg-gray-50">
+                        <div id="existingImages" class="hidden mt-3">
+                            <p class="text-xs font-semibold text-gray-600 mb-2">Fotos actuales — la primera será la foto principal. Usá las flechas para cambiar el orden o “Hacer principal”.</p>
+                            <div id="existingImagesGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-3">
+                      <button type="submit" id="btnSubmitProp" class="flex-1 bg-brand-bronze hover:bg-brand-bronzeDark text-white font-bold py-3 rounded-lg text-sm transition shadow">
+                        Guardar e Iniciar Publicación
+                      </button>
+                      <button type="button" id="btnCancelEdit" onclick="cancelEdit()" class="hidden bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold px-5 py-3 rounded-lg text-sm">Cancelar edición</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ADMINISTRACIÓN DE LOCALIDADES -->
+            <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-brand-bronze/30">
+                <h3 class="font-serif-title text-xl font-bold text-brand-navy mb-2">Administrar localidades</h3>
+                <p class="text-xs text-gray-500 mb-4">Agregá localidades, cambiá sus nombres o desactivalas. Las localidades desactivadas no aparecerán para nuevas publicaciones y no se borrarán de las propiedades existentes.</p>
+                <form id="localityForm" onsubmit="saveLocality(event)" class="flex flex-col sm:flex-row gap-2 mb-4">
+                    <input id="newLocalityName" type="text" maxlength="100" required placeholder="Ej: Don Torcuato" class="flex-1 p-2.5 text-xs border rounded-lg">
+                    <button id="localitySubmit" type="submit" class="bg-brand-navy hover:bg-brand-navyDark text-white font-bold px-4 py-2.5 rounded-lg text-xs">Agregar localidad</button>
+                    <button id="localityCancel" type="button" onclick="cancelLocalityEdit()" class="hidden bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold px-4 py-2.5 rounded-lg text-xs">Cancelar</button>
+                </form>
+                <div id="localityAdminList" class="space-y-2">
+                    <p class="text-xs text-gray-500">Cargando localidades...</p>
+                </div>
+            </div>
+
+            <!-- LISTADO DE PROPIEDADES -->
+            <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-brand-bronze/30">
+                <h3 class="font-serif-title text-xl font-bold text-brand-navy mb-4">Inmuebles Registrados</h3>
+                <p class="text-xs text-gray-500 mb-3">Podés arrastrar cada propiedad para cambiar su prioridad de aparición en la web.</p>\n                <div id="adminPropertyList" class="space-y-3">
+                    <p class="text-xs text-gray-500">Cargando listado...</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- SCRIPT DE ADMINISTRACIÓN -->
+    <script>
+        const SUPABASE_URL = 'https://bfnsinnvotiwvqttriqc.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmbnNpbm52b3Rpd3ZxdHRyaXFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwMjM1NzAsImV4cCI6MjEwNzU5OTU3MH0.U3mXkNUFH99az-8TE3NM8_hPVzCE7XblZd_A3FaLM_8';
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function checkSession() {
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session) {
+                    document.getElementById('loginSection').classList.add('hidden');
+                    document.getElementById('adminPanel').classList.remove('hidden');
+                    document.getElementById('btnLogout').classList.remove('hidden');
+                    loadLocalities();
+                    loadAdminProperties();
+                }
+            } catch (err) {
+                console.error("Error al verificar sesión:", err);
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const errorLabel = document.getElementById('loginError');
+            const btnLogin = document.getElementById('btnLogin');
+
+            errorLabel.classList.add('hidden');
+            btnLogin.textContent = 'Verificando...';
+            btnLogin.disabled = true;
+
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+                if (error) {
+                    errorLabel.textContent = 'Error: ' + error.message;
+                    errorLabel.classList.remove('hidden');
+                    btnLogin.textContent = 'Ingresar al Panel';
+                    btnLogin.disabled = false;
+                    return;
+                }
+
+                if (data.session) {
+                    document.getElementById('loginSection').classList.add('hidden');
+                    document.getElementById('adminPanel').classList.remove('hidden');
+                    document.getElementById('btnLogout').classList.remove('hidden');
+                    loadLocalities();
+                    loadAdminProperties();
+                }
+            } catch (err) {
+                errorLabel.textContent = 'Ocurrió un error inesperado al conectar.';
+                errorLabel.classList.remove('hidden');
+                btnLogin.textContent = 'Ingresar al Panel';
+                btnLogin.disabled = false;
+            }
+        }
+
+        async function logout() {
+            await supabaseClient.auth.signOut();
+            location.reload();
+        }
+
+        let editingPropertyId = null;
+        let retainedImages = [];
+        let currentProperties = [];
+        let currentLocalities = [];
+        let editingLocalityId = null;
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        }
+
+        async function loadLocalities(selectedValue = null) {
+            const { data, error } = await supabaseClient
+                .from('property_locations')
+                .select('id, name, is_active')
+                .order('name', { ascending: true });
+
+            const select = document.getElementById('propLocality');
+            const list = document.getElementById('localityAdminList');
+            if (error) {
+                select.innerHTML = '<option value="">No se pudieron cargar las localidades</option>';
+                list.innerHTML = '<p class="text-xs text-red-600">Error al cargar localidades: ' + escapeHtml(error.message) + '</p>';
+                return;
+            }
+
+            currentLocalities = data || [];
+            const active = currentLocalities.filter(item => item.is_active);
+            const selected = selectedValue ?? select.value;
+            select.innerHTML = '<option value="">Seleccionar localidad</option>' +
+                active.map(item => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`).join('');
+
+            // Al editar, mantener visible la localidad guardada aunque haya sido desactivada.
+            if (selected && !active.some(item => item.name === selected)) {
+                select.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(selected)}">${escapeHtml(selected)} (inactiva - propiedad existente)</option>`);
+            }
+            select.value = selected || '';
+
+            if (!currentLocalities.length) {
+                list.innerHTML = '<p class="text-xs text-gray-500">Todavía no hay localidades cargadas.</p>';
+                return;
+            }
+
+            list.innerHTML = '';
+            currentLocalities.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs';
+                row.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <strong class="text-brand-navy">${escapeHtml(item.name)}</strong>
+                        <span class="rounded px-2 py-1 ${item.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}">${item.is_active ? 'Activa' : 'Inactiva'}</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" data-action="edit" class="bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1.5 rounded-lg font-bold">Renombrar</button>
+                        <button type="button" data-action="toggle" class="${item.is_active ? 'bg-amber-100 hover:bg-amber-200 text-amber-800' : 'bg-green-100 hover:bg-green-200 text-green-800'} px-3 py-1.5 rounded-lg font-bold">${item.is_active ? 'Desactivar' : 'Activar'}</button>
+                    </div>`;
+                row.querySelector('[data-action="edit"]').addEventListener('click', () => editLocality(item.id));
+                row.querySelector('[data-action="toggle"]').addEventListener('click', () => toggleLocality(item.id, item.is_active));
+                list.appendChild(row);
+            });
+        }
+
+        async function saveLocality(e) {
+            e.preventDefault();
+            const input = document.getElementById('newLocalityName');
+            const name = input.value.trim();
+            if (!name) return;
+            const button = document.getElementById('localitySubmit');
+            button.disabled = true;
+            try {
+                if (editingLocalityId !== null) {
+                    const old = currentLocalities.find(item => String(item.id) === String(editingLocalityId));
+                    if (!old) throw new Error('No se encontró la localidad seleccionada.');
+                    const { error: propError } = await supabaseClient
+                        .from('properties').update({ locality: name }).eq('locality', old.name);
+                    if (propError) throw new Error('No se pudieron actualizar las propiedades existentes: ' + propError.message);
+                    const { error } = await supabaseClient
+                        .from('property_locations').update({ name }).eq('id', editingLocalityId);
+                    if (error) throw new Error(error.message);
+                    alert('Localidad renombrada. También se actualizó en las propiedades que la tenían asignada.');
+                } else {
+                    const { error } = await supabaseClient.from('property_locations').insert([{ name }]);
+                    if (error) throw new Error(error.message);
+                }
+                cancelLocalityEdit();
+                await loadLocalities();
+                await loadAdminProperties();
+            } catch (err) {
+                alert('No se pudo guardar la localidad. ' + (err.message || ''));
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        function editLocality(id) {
+            const item = currentLocalities.find(locality => String(locality.id) === String(id));
+            if (!item) return;
+            editingLocalityId = item.id;
+            document.getElementById('newLocalityName').value = item.name;
+            document.getElementById('localitySubmit').textContent = 'Guardar nombre';
+            document.getElementById('localityCancel').classList.remove('hidden');
+            document.getElementById('newLocalityName').focus();
+        }
+
+        function cancelLocalityEdit() {
+            editingLocalityId = null;
+            document.getElementById('localityForm').reset();
+            document.getElementById('localitySubmit').textContent = 'Agregar localidad';
+            document.getElementById('localityCancel').classList.add('hidden');
+        }
+
+        async function toggleLocality(id, currentlyActive) {
+            const item = currentLocalities.find(locality => String(locality.id) === String(id));
+            if (!item) return;
+            const action = currentlyActive ? 'desactivar' : 'activar';
+            if (!confirm(`¿Querés ${action} la localidad "${item.name}"?${currentlyActive ? ' Las propiedades existentes conservarán el nombre asignado.' : ''}`)) return;
+            const { error } = await supabaseClient.from('property_locations')
+                .update({ is_active: !currentlyActive }).eq('id', id);
+            if (error) return alert('No se pudo actualizar la localidad: ' + error.message);
+            await loadLocalities();
+        }
+
+        async function loadAdminProperties() {
+            const container = document.getElementById('adminPropertyList');
+            const { data, error } = await supabaseClient.from('properties').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false });
+            if (error) { container.innerHTML = '<p class="text-xs text-red-600">Error al cargar las propiedades: ' + escapeHtml(error.message) + '</p>'; return; }
+            currentProperties = data || [];
+            if (!currentProperties.length) { container.innerHTML = '<p class="text-xs text-gray-500">No hay inmuebles cargados actualmente.</p>'; return; }
+            container.innerHTML = '';
+            currentProperties.forEach(prop => {
+                const item = document.createElement('div');
+                item.className = 'flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs cursor-grab';
+                item.draggable = true;
+                item.dataset.propertyId = prop.id;
+                const status = prop.status || prop.commercial_status || '';
+                item.innerHTML = `
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="text-gray-400 text-lg select-none" title="Arrastrar para cambiar prioridad">☷</span>
+                        <div class="min-w-0">
+                        <strong class="text-brand-navy text-sm">${escapeHtml(prop.title)}</strong>
+                        <p class="text-gray-500">${escapeHtml(prop.operation)} - ${escapeHtml(prop.currency)} $${Number(prop.price || 0).toLocaleString('es-AR')} (${escapeHtml(prop.location)}${prop.locality ? ' · ' + escapeHtml(prop.locality) : ''})</p>
+                        ${status ? `<span class="inline-block mt-1 rounded bg-red-100 text-red-700 px-2 py-1 font-bold">${escapeHtml(status)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="flex gap-2 shrink-0">
+                      <button onclick="editProperty('${String(prop.id).replace(/'/g, "\\'")}')" class="bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1.5 rounded-lg font-bold transition"><i class="fas fa-pen"></i> Editar</button>
+                      <button onclick="deleteProperty('${String(prop.id).replace(/'/g, "\\'")}')" class="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-lg font-bold transition"><i class="fas fa-trash"></i> Eliminar</button>
+                    </div>`;
+                item.addEventListener('dragstart', (event) => {
+                    item.classList.add('opacity-40');
+                    event.dataTransfer.setData('text/plain', String(prop.id));
+                    event.dataTransfer.effectAllowed = 'move';
+                });
+                item.addEventListener('dragend', () => item.classList.remove('opacity-40'));
+                item.addEventListener('dragover', (event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'move';
+                    item.classList.add('border-brand-bronze');
+                });
+                item.addEventListener('dragleave', () => item.classList.remove('border-brand-bronze'));
+                item.addEventListener('drop', async (event) => {
+                    event.preventDefault();
+                    item.classList.remove('border-brand-bronze');
+                    const draggedId = event.dataTransfer.getData('text/plain');
+                    if (!draggedId || String(draggedId) === String(prop.id)) return;
+                    const from = currentProperties.findIndex(p => String(p.id) === String(draggedId));
+                    const to = currentProperties.findIndex(p => String(p.id) === String(prop.id));
+                    if (from < 0 || to < 0) return;
+                    const reordered = [...currentProperties];
+                    const [moved] = reordered.splice(from, 1);
+                    reordered.splice(to, 0, moved);
+                    currentProperties = reordered;
+                    await savePropertyPriorityOrder();
+                });
+                container.appendChild(item);
+            });
+        }
+
+        async function savePropertyPriorityOrder() {
+            const container = document.getElementById('adminPropertyList');
+            container.classList.add('opacity-60', 'pointer-events-none');
+            try {
+                for (let i = 0; i < currentProperties.length; i++) {
+                    const { error } = await supabaseClient.from('properties')
+                        .update({ sort_order: i + 1 }).eq('id', currentProperties[i].id);
+                    if (error) throw error;
+                }
+                await loadAdminProperties();
+            } catch (error) {
+                alert('No se pudo guardar el nuevo orden. Verificá que hayas ejecutado el SQL de ordenamiento en Supabase. Detalle: ' + error.message);
+                await loadAdminProperties();
+            } finally {
+                container.classList.remove('opacity-60', 'pointer-events-none');
+            }
+        }
+
+        function renderExistingImages() {
+            const wrap = document.getElementById('existingImages');
+            const grid = document.getElementById('existingImagesGrid');
+            grid.innerHTML = '';
+            if (!editingPropertyId) { wrap.classList.add('hidden'); return; }
+            wrap.classList.remove('hidden');
+            if (!retainedImages.length) { grid.innerHTML = '<p class="text-xs text-gray-500 col-span-full">No quedan fotos actuales. Podés agregar nuevas arriba.</p>'; return; }
+            retainedImages.forEach((url, idx) => {
+                const card = document.createElement('div');
+                card.className = 'border rounded-lg p-2 bg-white cursor-grab';
+                card.draggable = true;
+                card.dataset.imageIndex = idx;
+                card.innerHTML = `
+                    <div class="relative">
+                        <img src="${escapeHtml(url)}" alt="Foto ${idx+1}" class="w-full h-24 object-contain bg-gray-100 rounded" />
+                        ${idx === 0 ? '<span class="absolute top-1 left-1 text-[10px] font-bold text-white bg-brand-bronze rounded px-2 py-1">FOTO PRINCIPAL</span>' : ''}
+                    </div>
+                    <p class="text-[11px] text-center text-gray-500 mt-2">Foto ${idx+1} de ${retainedImages.length}</p>
+                    <div class="grid grid-cols-2 gap-1 mt-2">
+                        <button type="button" data-action="up" class="text-xs font-bold rounded px-2 py-1.5 ${idx === 0 ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 hover:bg-blue-100 text-blue-800'}" ${idx === 0 ? 'disabled' : ''}>↑ Subir</button>
+                        <button type="button" data-action="down" class="text-xs font-bold rounded px-2 py-1.5 ${idx === retainedImages.length - 1 ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 hover:bg-blue-100 text-blue-800'}" ${idx === retainedImages.length - 1 ? 'disabled' : ''}>↓ Bajar</button>
+                    </div>
+                    ${idx !== 0 ? '<button type="button" data-action="primary" class="mt-1 w-full text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 rounded px-2 py-1.5">★ Hacer principal</button>' : ''}
+                    <button type="button" data-action="remove" class="mt-1 w-full text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 rounded px-2 py-1.5">Quitar foto</button>`;
+
+                card.addEventListener('dragstart', (event) => {
+                    card.classList.add('opacity-40');
+                    event.dataTransfer.setData('text/plain', String(idx));
+                    event.dataTransfer.effectAllowed = 'move';
+                });
+                card.addEventListener('dragend', () => card.classList.remove('opacity-40'));
+                card.addEventListener('dragover', (event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'move';
+                    card.classList.add('ring-2', 'ring-amber-500');
+                });
+                card.addEventListener('dragleave', () => card.classList.remove('ring-2', 'ring-amber-500'));
+                card.addEventListener('drop', (event) => {
+                    event.preventDefault();
+                    card.classList.remove('ring-2', 'ring-amber-500');
+                    const from = Number(event.dataTransfer.getData('text/plain'));
+                    if (!Number.isInteger(from) || from < 0 || from >= retainedImages.length || from === idx) return;
+                    const [moved] = retainedImages.splice(from, 1);
+                    retainedImages.splice(idx, 0, moved);
+                    renderExistingImages();
+                });
+                card.querySelector('[data-action="up"]')?.addEventListener('click', () => moveExistingImage(idx, -1));
+                card.querySelector('[data-action="down"]')?.addEventListener('click', () => moveExistingImage(idx, 1));
+                card.querySelector('[data-action="primary"]')?.addEventListener('click', () => moveExistingImage(idx, -idx));
+                card.querySelector('[data-action="remove"]').addEventListener('click', () => {
+                    if (confirm('¿Quitar esta foto de la publicación? El archivo de almacenamiento no se borrará físicamente.')) { retainedImages.splice(idx, 1); renderExistingImages(); }
+                });
+                grid.appendChild(card);
+            });
+        }
+
+        function moveExistingImage(index, offset) {
+            const newIndex = index + offset;
+            if (newIndex < 0 || newIndex >= retainedImages.length || index === newIndex) return;
+            const [image] = retainedImages.splice(index, 1);
+            retainedImages.splice(newIndex, 0, image);
+            renderExistingImages();
+        }
+
+        async function editProperty(id) {
+            const prop = currentProperties.find(p => String(p.id) === String(id));
+            if (!prop) return alert('No se encontró la propiedad. Actualizá el listado e intentá nuevamente.');
+            editingPropertyId = prop.id;
+            retainedImages = Array.isArray(prop.images) ? [...prop.images] : [];
+            document.getElementById('propTitle').value = prop.title || '';
+            document.getElementById('propLocation').value = prop.location || '';
+            await loadLocalities(prop.locality || '');
+            document.getElementById('propOperation').value = prop.operation || 'Venta';
+            document.getElementById('propType').value = prop.property_type || 'Casa';
+            document.getElementById('propCurrency').value = prop.currency || 'USD';
+            document.getElementById('propPrice').value = prop.price ?? '';
+            document.getElementById('propRooms').value = prop.rooms ?? '';
+            document.getElementById('propBedrooms').value = prop.bedrooms ?? '';
+            document.getElementById('propSurface').value = prop.surface_total ?? '';
+            document.getElementById('propDescription').value = prop.description || '';
+            document.getElementById('propStatus').value = prop.status || prop.commercial_status || '';
+            document.getElementById('formTitle').textContent = 'Editar Propiedad';
+            document.getElementById('editNotice').classList.remove('hidden');
+            document.getElementById('btnSubmitProp').textContent = 'Guardar cambios';
+            document.getElementById('btnCancelEdit').classList.remove('hidden');
+            document.getElementById('propImages').value = '';
+            renderExistingImages();
+            document.getElementById('propertyForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function cancelEdit() {
+            editingPropertyId = null; retainedImages = [];
+            document.getElementById('propertyForm').reset();
+            document.getElementById('formTitle').textContent = 'Publicar Nueva Propiedad';
+            document.getElementById('editNotice').classList.add('hidden');
+            document.getElementById('btnSubmitProp').textContent = 'Guardar e Iniciar Publicación';
+            document.getElementById('btnCancelEdit').classList.add('hidden');
+            document.getElementById('existingImages').classList.add('hidden');
+            document.getElementById('existingImagesGrid').innerHTML = '';
+            loadLocalities('');
+        }
+
+        async function handleCreateProperty(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnSubmitProp');
+            const originalText = editingPropertyId ? 'Guardar cambios' : 'Guardar e Iniciar Publicación';
+            btn.textContent = editingPropertyId ? 'Guardando cambios...' : 'Subiendo imágenes y guardando...';
+            btn.disabled = true;
+            const uploadedPaths = [];
+            try {
+                const title = document.getElementById('propTitle').value.trim();
+                const location = document.getElementById('propLocation').value.trim();
+                const locality = document.getElementById('propLocality').value || null;
+                const operation = document.getElementById('propOperation').value;
+                const property_type = document.getElementById('propType').value;
+                const currency = document.getElementById('propCurrency').value;
+                const price = Number(document.getElementById('propPrice').value);
+                const rooms = parseInt(document.getElementById('propRooms').value, 10) || null;
+                const bedrooms = parseInt(document.getElementById('propBedrooms').value, 10) || null;
+                const surface_total = parseFloat(document.getElementById('propSurface').value) || null;
+                const description = document.getElementById('propDescription').value.trim();
+                const status = document.getElementById('propStatus').value || '';
+                const imageFiles = Array.from(document.getElementById('propImages').files || []);
+                const imageUrls = editingPropertyId ? [...retainedImages] : [];
+                if (!editingPropertyId && imageFiles.length === 0) throw new Error('Seleccioná al menos una fotografía antes de publicar.');
+                for (const file of imageFiles) {
+                    if (!file.type.startsWith('image/')) throw new Error(`El archivo "${file.name}" no parece ser una imagen válida.`);
+                    const fileExt = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const fileName = `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}.${fileExt}`;
+                    const { data: uploadData, error: uploadError } = await supabaseClient.storage.from('properties-images').upload(fileName, file, { cacheControl: '3600', upsert: false, contentType: file.type });
+                    if (uploadError) throw new Error(`No se pudo subir "${file.name}". ${uploadError.message}. Revisá el bucket y la política de INSERT.`);
+                    uploadedPaths.push(uploadData.path || fileName);
+                    const { data: publicURLData } = supabaseClient.storage.from('properties-images').getPublicUrl(uploadData.path || fileName);
+                    if (!publicURLData?.publicUrl) throw new Error(`La imagen "${file.name}" se subió, pero no se pudo obtener su URL pública.`);
+                    imageUrls.push(publicURLData.publicUrl);
+                }
+                const existingPriority = editingPropertyId ? (currentProperties.find(p => String(p.id) === String(editingPropertyId))?.sort_order ?? 0) : 0;
+                const payload = { title, location, locality, operation, property_type, currency, price, rooms, bedrooms, surface_total, description, images: imageUrls, status, is_visible: true, sort_order: existingPriority };
+                let saveResult;
+                if (editingPropertyId) saveResult = await supabaseClient.from('properties').update(payload).eq('id', editingPropertyId);
+                else saveResult = await supabaseClient.from('properties').insert([payload]);
+                if (saveResult.error) {
+                    if (/status|column/i.test(saveResult.error.message || '')) throw new Error('No se pudo guardar el estado comercial. Revisá la configuración de la columna status en Supabase. Detalle: ' + saveResult.error.message);
+                    throw new Error(`No se pudo guardar la propiedad: ${saveResult.error.message}`);
+                }
+                alert(editingPropertyId ? '¡Cambios guardados correctamente!' : `¡Propiedad publicada con éxito! Se guardaron ${imageUrls.length} fotografía(s).`);
+                cancelEdit();
+                await loadAdminProperties();
+            } catch (err) {
+                console.error('Error al guardar propiedad:', err);
+                if (uploadedPaths.length) { const { error: cleanupError } = await supabaseClient.storage.from('properties-images').remove(uploadedPaths); if (cleanupError) console.warn('No se pudieron limpiar algunas imágenes subidas:', cleanupError.message); }
+                alert(`No se pudo guardar la propiedad.\n\n${err.message || 'Error inesperado.'}`);
+            } finally { btn.textContent = originalText; btn.disabled = false; }
+        }
+
+        async function deleteProperty(id) {
+            if (confirm('¿Estás seguro de eliminar este inmueble?')) {
+                const { error } = await supabaseClient.from('properties').delete().eq('id', id);
+                if (!error) {
+                    loadLocalities();
+                    loadAdminProperties();
+                } else {
+                    alert('Error al eliminar.');
+                }
+            }
+        }
+
+        checkSession();
+    </script>
+</body>
+</html>
