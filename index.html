@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Herrera Estudio Inmobiliario. Propiedades en venta y alquiler en Don Torcuato y alrededores. Tasaciones y asesoramiento profesional. Matrícula C.S.I 6219.">
+    <link rel="canonical" href="https://herreraprop.com/">
+    <meta property="og:site_name" content="Herrera Estudio Inmobiliario">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://herreraprop.com/">
+    <meta property="og:title" content="Herrera Estudio Inmobiliario">
+    <meta property="og:description" content="Propiedades en venta y alquiler en Don Torcuato y alrededores.">
+    <link rel="icon" type="image/x-icon" href="/favicon-herrera-original.ico">
+    <link rel="icon" type="image/png" sizes="1024x1024" href="/favicon-herrera-original.png">
+    <title>Herrera Inmobiliaria | Don Torcuato | C.S.I 6219</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- SCRIPT DE CONEXIÓN CON SUPABASE -->
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const yearElem = document.getElementById('year');
+            if (yearElem) yearElem.innerText = new Date().getFullYear();
+            loadProperties();
+        });
+
+        const SUPABASE_URL = 'https://bfnsinnvotiwvqttriqc.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmbnNpbm52b3Rpd3ZxdHRyaXFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwMjM1NzAsImV4cCI6MjEwNzU5OTU3MH0.U3mXkNUFH99az-8TE3NM8_hPVzCE7XblZd_A3FaLM_8';
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let cachedProperties = [];
+
+        function slugifyText(value) {
+            return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
+        }
+
+        function getPropertySeoUrl(prop) {
+            const operation = slugifyText(prop.operation || 'propiedad');
+            const type = slugifyText(prop.property_type || prop['property type'] || prop.type || 'inmueble');
+            const locality = slugifyText(prop.locality || prop.location || 'buenos-aires');
+            const shortId = String(prop.id || '').slice(0, 8);
+            return `${window.location.origin}/propiedades/${type}-${operation}-${locality}-${shortId}`;
+        }
+
+        function getImageUrl(imgPath) {
+            if (!imgPath) return 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80';
+            if (imgPath.startsWith('http')) return imgPath;
+            return `${SUPABASE_URL}/storage/v1/object/public/properties-images/${imgPath}`;
+        }
+
+        async function loadProperties() {
+            const container = document.getElementById('properties-grid');
+            const countLabel = document.getElementById('property-count');
+            const operacion = document.getElementById('filter-operacion').value;
+            const tipo = document.getElementById('filter-tipo').value;
+            const search = document.getElementById('filter-search').value.toLowerCase();
+
+            if (!container) return;
+
+            container.innerHTML = '<p class="col-span-full text-center py-12 text-gray-500">Cargando propiedades desde Supabase...</p>';
+
+            let query = supabaseClient
+                .from('properties')
+                .select('*')
+                .order('sort_order', { ascending: true }).order('created_at', { ascending: false });
+
+            const { data: properties, error } = await query;
+
+            if (error) {
+                console.error('Error al conectar con Supabase:', error);
+                container.innerHTML = `<p class="col-span-full text-center py-12 text-red-600 font-medium">Error: ${error.message}</p>`;
+                if (countLabel) countLabel.innerText = '0 inmuebles';
+                return;
+            }
+
+            cachedProperties = properties || [];
+
+            let filtered = cachedProperties;
+
+            if (operacion !== 'TODOS') {
+                filtered = filtered.filter(p => p.operation === operacion);
+            }
+
+            if (tipo !== 'TODOS') {
+                filtered = filtered.filter(p => {
+                    const propertyType = p.property_type || p['property type'] || p.type;
+                    return propertyType === tipo;
+                });
+            }
+
+            if (search.trim() !== '') {
+                filtered = filtered.filter(p => 
+                    (p.location && p.location.toLowerCase().includes(search)) || 
+                    (p.title && p.title.toLowerCase().includes(search))
+                );
+            }
+
+            renderPropertiesGrid(filtered);
+
+            // Si se ingresa mediante un enlace compartido, abrir directamente esa propiedad.
+            const sharedId = new URLSearchParams(window.location.search).get('prop');
+            const currentPath = window.location.pathname;
+            const pathProperty = currentPath.startsWith('/propiedades/')
+                ? cachedProperties.find(p => new URL(getPropertySeoUrl(p)).pathname === currentPath)
+                : null;
+            const initialProperty = sharedId
+                ? cachedProperties.find(p => String(p.id) === String(sharedId))
+                : pathProperty;
+            if (initialProperty && !window.__sharedPropertyOpened) {
+                window.__sharedPropertyOpened = true;
+                openDetailModal(initialProperty.id, false);
+                updatePropertyPageMetadata(initialProperty);
+            }
+        }
+
+        function renderPropertiesGrid(list) {
+            const container = document.getElementById('properties-grid');
+            const countLabel = document.getElementById('property-count');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (countLabel) countLabel.innerText = `${list.length} inmuebles disponibles`;
+
+            if (list.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full py-12 text-center text-gray-500">
+                        <i class="fas fa-home text-4xl mb-3 text-brand-bronze"></i>
+                        <p class="text-base font-semibold">No se encontraron propiedades cargadas en la base de datos.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.forEach((prop, cardIndex) => {
+                const rawImg = prop.images && prop.images.length > 0 ? prop.images[0] : null;
+                const mainImage = getImageUrl(rawImg);
+                const formattedPrice = `${prop.currency || 'USD'} $${Number(prop.price || 0).toLocaleString('es-AR')}`;
+
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-2xl shadow-lg hover:shadow-xl overflow-hidden border border-brand-bronze/20 transition-all transform hover:-translate-y-1 flex flex-col justify-between cursor-pointer";
+                
+                card.onclick = () => openDetailModal(prop.id);
+
+                card.innerHTML = `
+                    <div>
+                        <div class="relative h-56 overflow-hidden group">
+                            <img src="${mainImage}" alt="${prop.title || 'Propiedad'}" loading="lazy" decoding="async" fetchpriority="${cardIndex < 3 ? 'high' : 'auto'}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                            <span class="absolute top-3 left-3 bg-[#0C2340] text-white text-xs font-bold px-3 py-1.5 rounded-full tracking-wider shadow-lg border border-white/70">
+                                ${prop.operation || 'Operación'}
+                            </span>
+                            ${(() => { const status = prop.status || prop.commercial_status || ''; return status ? `<span class="absolute bottom-3 right-3 bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full tracking-wider shadow-lg border border-white/70">${String(status).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}</span>` : ''; })()}
+                        </div>
+                        <div class="p-5 space-y-3">
+                            <span class="text-[11px] font-semibold text-brand-bronze uppercase tracking-wider block">
+                                <i class="fas fa-map-marker-alt"></i> ${[prop.location, prop.locality].filter(Boolean).join(' · ') || 'Ubicación no especificada'}
+                            </span>
+                            <h3 class="font-serif-title text-xl font-bold text-brand-navy leading-snug line-clamp-2">
+                                ${prop.title || 'Sin título'}
+                            </h3>
+                            <div class="grid grid-cols-4 gap-2 bg-brand-creamCard/60 p-2.5 rounded-xl border border-brand-bronze/10 text-center text-[11px] text-gray-700 font-medium">
+                                <div><i class="fas fa-door-open text-brand-bronze mr-1"></i>${prop.rooms || '-'} Amb</div>
+                                <div><i class="fas fa-bed text-brand-bronze mr-1"></i>${prop.bedrooms || '-'} Dorm</div>
+                                <div><i class="fas fa-bath text-brand-bronze mr-1"></i>${prop.bathrooms || prop.bathroom || '1'} Baño</div>
+                                <div><i class="fas fa-ruler-combined text-brand-bronze mr-1"></i>${prop.surface_total || prop.surface || '-'} m²</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-5 pt-0">
+                        <div class="price-box-highlight flex items-center justify-between mt-2">
+                            <div>
+                                <span class="text-[9px] uppercase tracking-wider text-white/80 block font-medium">VALOR</span>
+                                <span class="text-xl font-bold font-serif-title">${formattedPrice}</span>
+                            </div>
+                            <button type="button" onclick="event.stopPropagation(); openDetailModal('${prop.id}')" class="bg-white/20 hover:bg-white/30 text-white font-medium text-xs px-3 py-2 rounded-lg transition-all flex items-center gap-1 border border-white/20">
+                                Ver Detalle <i class="fas fa-arrow-right text-[10px]"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function setOperationFilter(op) {
+            const selectOp = document.getElementById('filter-operacion');
+            if (selectOp) selectOp.value = op;
+            loadProperties();
+        }
+
+        // Estado de la galería de la ficha: se mantiene independiente del catálogo/Supabase.
+        let detailGalleryImages = [];
+        let detailGalleryIndex = 0;
+        let detailGalleryTimer = null;
+        let detailGalleryPaused = false;
+
+        function showDetailGalleryImage(index) {
+            if (!detailGalleryImages.length) return;
+            detailGalleryIndex = (index + detailGalleryImages.length) % detailGalleryImages.length;
+            const image = document.getElementById('detail-img');
+            if (image) {
+                image.src = getImageUrl(detailGalleryImages[detailGalleryIndex]);
+                image.decoding = 'async';
+            }
+            const counter = document.getElementById('detail-gallery-counter');
+            if (counter) counter.innerText = `${detailGalleryIndex + 1} / ${detailGalleryImages.length}`;
+            const thumbs = document.querySelectorAll('#detail-thumbnails img');
+            thumbs.forEach((thumb, i) => {
+                thumb.classList.toggle('border-[#0C2340]', i === detailGalleryIndex);
+                thumb.classList.toggle('border-transparent', i !== detailGalleryIndex);
+                thumb.setAttribute('aria-current', i === detailGalleryIndex ? 'true' : 'false');
+            });
+        }
+
+        function stopDetailGalleryTimer() {
+            if (detailGalleryTimer) clearInterval(detailGalleryTimer);
+            detailGalleryTimer = null;
+        }
+
+        function startDetailGallery() {
+            stopDetailGalleryTimer();
+            const button = document.getElementById('detail-gallery-toggle');
+            if (button) button.innerHTML = '<i class="fas fa-pause"></i><span class="sr-only">Pausar pase automático</span>';
+            if (detailGalleryImages.length < 2 || detailGalleryPaused) return;
+            detailGalleryTimer = setInterval(() => showDetailGalleryImage(detailGalleryIndex + 1), 3000);
+        }
+
+        function navigateDetailGallery(step) {
+            detailGalleryPaused = true;
+            stopDetailGalleryTimer();
+            const button = document.getElementById('detail-gallery-toggle');
+            if (button) button.innerHTML = '<i class="fas fa-play"></i><span class="sr-only">Reanudar pase automático</span>';
+            showDetailGalleryImage(detailGalleryIndex + step);
+        }
+
+        function toggleDetailGallery() {
+            detailGalleryPaused = !detailGalleryPaused;
+            if (detailGalleryPaused) {
+                stopDetailGalleryTimer();
+                const button = document.getElementById('detail-gallery-toggle');
+                if (button) button.innerHTML = '<i class="fas fa-play"></i><span class="sr-only">Reanudar pase automático</span>';
+            } else {
+                startDetailGallery();
+            }
+        }
+
+        function openDetailModal(id, updateAddress = true) {
+            const prop = cachedProperties.find(p => p.id == id);
+            if (!prop) return;
+
+            const rawImg = prop.images && prop.images.length > 0 ? prop.images[0] : null;
+            const mainImage = getImageUrl(rawImg);
+            const formattedPrice = `${prop.currency || 'USD'} $${Number(prop.price || 0).toLocaleString('es-AR')}`;
+            const propertyType = prop.property_type || prop['property type'] || prop.type || 'Inmueble';
+
+            detailGalleryImages = (prop.images && prop.images.length > 0) ? prop.images.slice() : [rawImg];
+            detailGalleryIndex = 0;
+            detailGalleryPaused = false;
+            document.getElementById('detail-img').src = mainImage;
+            document.getElementById('detail-title').innerText = prop.title || 'Propiedad';
+            document.getElementById('detail-location').innerText = [prop.location, prop.locality].filter(Boolean).join(' · ') || 'Ubicación no especificada';
+            document.getElementById('detail-price').innerText = formattedPrice;
+            document.getElementById('detail-badge').innerText = prop.operation || 'Operación';
+            const detailStatusBadge = document.getElementById('detail-status-badge');
+            const commercialStatus = prop.status || prop.commercial_status || '';
+            detailStatusBadge.textContent = commercialStatus;
+            detailStatusBadge.classList.toggle('hidden', !commercialStatus);
+            document.getElementById('detail-type').innerText = propertyType;
+            document.getElementById('detail-amb').innerText = prop.rooms || '-';
+            document.getElementById('detail-dorm').innerText = prop.bedrooms || '-';
+            document.getElementById('detail-bath').innerText = prop.bathrooms || prop.bathroom || '1';
+            document.getElementById('detail-sup').innerText = (prop.surface_total || prop.surface) ? `${prop.surface_total || prop.surface} m²` : '-';
+            document.getElementById('detail-desc').innerText = prop.description || 'Consulte para realizar una visita o recibir más información sobre esta propiedad.';
+            
+            const thumbsContainer = document.getElementById('detail-thumbnails');
+            thumbsContainer.innerHTML = '';
+            detailGalleryImages.forEach((img, index) => {
+                const thumbImg = document.createElement('img');
+                thumbImg.src = getImageUrl(img);
+                thumbImg.alt = `Foto ${index + 1} de ${prop.title || 'la propiedad'}`;
+                thumbImg.loading = 'lazy';
+                thumbImg.decoding = 'async';
+                thumbImg.className = "w-14 h-14 sm:w-16 sm:h-16 shrink-0 object-cover rounded-lg cursor-pointer border-2 border-transparent hover:border-[#0C2340] transition-all";
+                thumbImg.onclick = () => {
+                    detailGalleryPaused = true;
+                    stopDetailGalleryTimer();
+                    const toggle = document.getElementById('detail-gallery-toggle');
+                    if (toggle) toggle.innerHTML = '<i class="fas fa-play"></i><span class="sr-only">Reanudar pase automático</span>';
+                    showDetailGalleryImage(index);
+                };
+                thumbsContainer.appendChild(thumbImg);
+            });
+            showDetailGalleryImage(0);
+            startDetailGallery();
+
+            const msg = encodeURIComponent(`Hola Herrera Inmobiliaria, quisiera consultar por la propiedad: ${prop.title} (${formattedPrice})`);
+            document.getElementById('detail-wa-btn').href = `https://wa.me/5491149704626?text=${msg}`;
+            const shareUrl = getPropertySeoUrl(prop);
+            const shareText = `Mirá esta propiedad de Herrera Inmobiliaria: ${prop.title} - ${formattedPrice} ${shareUrl}`;
+            document.getElementById('detail-share-btn').href = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+            if (updateAddress) {
+                const seoUrl = getPropertySeoUrl(prop);
+                if (window.location.pathname !== new URL(seoUrl).pathname) {
+                    window.history.pushState({ propertyModal: true, propertyId: String(prop.id) }, '', seoUrl);
+                }
+                updatePropertyPageMetadata(prop);
+            }
+
+            document.getElementById('modal-detail').classList.remove('hidden');
+        }
+
+        function updatePropertyPageMetadata(prop) {
+            const title = `${prop.title || 'Propiedad'} | ${prop.operation || 'Inmueble'} en ${prop.locality || prop.location || 'Buenos Aires'} | Herrera Inmobiliaria`;
+            document.title = title;
+            const description = `${prop.title || 'Propiedad'} ${prop.operation || ''} en ${prop.locality || prop.location || 'Buenos Aires'}. Consultá precio, fotos y detalles con Herrera Inmobiliaria.`;
+            let metaDescription = document.querySelector('meta[name="description"]');
+            if (metaDescription) metaDescription.setAttribute('content', description);
+            let canonical = document.querySelector('link[rel="canonical"]');
+            if (canonical) canonical.setAttribute('href', getPropertySeoUrl(prop));
+            let ogUrl = document.querySelector('meta[property="og:url"]');
+            if (ogUrl) ogUrl.setAttribute('content', getPropertySeoUrl(prop));
+            let ogTitle = document.querySelector('meta[property="og:title"]');
+            if (!ogTitle) {
+                ogTitle = document.createElement('meta');
+                ogTitle.setAttribute('property', 'og:title');
+                document.head.appendChild(ogTitle);
+            }
+            ogTitle.setAttribute('content', title);
+            let ogDescription = document.querySelector('meta[property="og:description"]');
+            if (!ogDescription) {
+                ogDescription = document.createElement('meta');
+                ogDescription.setAttribute('property', 'og:description');
+                document.head.appendChild(ogDescription);
+            }
+            ogDescription.setAttribute('content', description);
+        }
+
+        function restoreHomeMetadata() {
+            document.title = 'Herrera Inmobiliaria | Don Torcuato | C.S.I 6219';
+            const canonical = document.querySelector('link[rel="canonical"]');
+            if (canonical) canonical.setAttribute('href', 'https://herreraprop.com/');
+            const ogUrl = document.querySelector('meta[property="og:url"]');
+            if (ogUrl) ogUrl.setAttribute('content', 'https://herreraprop.com/');
+            const ogTitle = document.querySelector('meta[property="og:title"]');
+            if (ogTitle) ogTitle.setAttribute('content', 'Herrera Estudio Inmobiliario');
+            const ogDescription = document.querySelector('meta[property="og:description"]');
+            if (ogDescription) ogDescription.setAttribute('content', 'Propiedades en venta y alquiler en Don Torcuato y alrededores.');
+        }
+
+        function hideDetailModal() {
+            stopDetailGalleryTimer();
+            document.getElementById('modal-detail').classList.add('hidden');
+            restoreHomeMetadata();
+        }
+
+        function closeDetailModal() {
+            const url = new URL(window.location.href);
+            if (url.pathname.startsWith('/propiedades/')) {
+                // Volver a la entrada anterior del historial (el catálogo).
+                if (window.history.state && window.history.state.propertyModal) {
+                    window.history.back();
+                    return;
+                }
+                window.history.replaceState({}, '', '/');
+            } else if (url.searchParams.has('prop')) {
+                url.searchParams.delete('prop');
+                window.history.replaceState({}, '', url);
+            }
+            hideDetailModal();
+        }
+
+        window.addEventListener('popstate', () => {
+            const path = window.location.pathname;
+            const sharedId = new URLSearchParams(window.location.search).get('prop');
+            if (path.startsWith('/propiedades/')) {
+                const prop = cachedProperties.find(p => new URL(getPropertySeoUrl(p)).pathname === path);
+                if (prop) openDetailModal(prop.id, false);
+                return;
+            }
+            if (sharedId) {
+                const prop = cachedProperties.find(p => String(p.id) === String(sharedId));
+                if (prop) {
+                    openDetailModal(prop.id, false);
+                    return;
+                }
+            }
+            hideDetailModal();
+        });
+
+        function handleTasacionSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('tas-name').value;
+            const phone = document.getElementById('tas-phone').value;
+            const desc = document.getElementById('tas-desc').value;
+            const msg = encodeURIComponent(`Hola Herrera Inmobiliaria, mi nombre es ${name} (Tel: ${phone}). Me gustaría solicitar la tasación de mi propiedad: ${desc}`);
+            window.open(`https://wa.me/5491149704626?text=${msg}`, '_blank');
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #FAF8F5 !important;
+            font-family: 'Montserrat', sans-serif;
+            color: #2D3748;
+        }
+
+        .font-serif-title {
+            font-family: 'EB Garamond', serif;
+        }
+
+        .price-box-highlight {
+            background: linear-gradient(135deg, #A36D3B 0%, #8B5A2B 100%);
+            color: #FFFFFF !important;
+            box-shadow: 0 4px 12px rgba(163, 109, 59, 0.25);
+            border-radius: 12px;
+            padding: 10px 14px;
+        }
+
+        #detail-img { user-select: none; -webkit-user-drag: none; }
+        #detail-thumbnails img[aria-current="true"] { border-color: #0C2340; }
+        #detail-thumbnails { scrollbar-width: thin; }
+
+        .instagram-arc {
+            width: 110px;
+            height: 12px;
+            border-bottom: 3px solid #A36D3B;
+            border-radius: 50%;
+            margin: 6px auto 0 auto;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#FAF8F5]">
+
+    <!-- HEADER / NAV STICKY FLOTANTE -->
+    <header class="sticky top-0 z-40 bg-[#0C2340] text-white shadow-lg border-b-2 border-[#A36D3B]">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <a href="#" class="flex items-center space-x-3 group">
+                <div class="w-12 h-12 border-2 border-[#A36D3B] rounded-lg flex flex-col items-center justify-center p-1 bg-[#071527] group-hover:border-white transition-all">
+                    <svg viewBox="0 0 100 100" class="w-9 h-9 fill-current text-white">
+                        <path d="M50 10 L10 45 L20 45 L20 85 L80 85 L80 45 L90 45 Z" fill="none" stroke="#A36D3B" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M10 88 Q50 98 90 88" fill="none" stroke="#A36D3B" stroke-width="5" stroke-linecap="round"/>
+                        <text x="50" y="68" font-family="'EB Garamond', serif" font-size="42" font-weight="bold" text-anchor="middle" fill="#FFFFFF">H</text>
+                    </svg>
+                </div>
+                <div class="flex flex-col">
+                    <span class="font-serif-title text-2xl tracking-widest text-white font-bold leading-tight">HERRERA</span>
+                    <span class="text-[9px] tracking-[0.22em] text-[#D19E66] font-medium uppercase">INMOBILIARIA <span class="text-white/40">|</span> C.S.I 6219</span>
+                </div>
+            </a>
+
+            <nav class="hidden md:flex items-center space-x-8 text-sm font-medium tracking-wide">
+                <a href="#inicio" class="text-white hover:text-[#D19E66] transition-colors py-1 border-b-2 border-[#A36D3B]">Inicio</a>
+                <a href="#propiedades" onclick="setOperationFilter('Venta')" class="text-white/90 hover:text-[#D19E66] transition-colors py-1">Ventas</a>
+                <a href="#propiedades" onclick="setOperationFilter('Alquiler')" class="text-white/90 hover:text-[#D19E66] transition-colors py-1">Alquileres</a>
+                <a href="#tasaciones" class="text-white/90 hover:text-[#D19E66] transition-colors py-1">Tasaciones</a>
+                <a href="#contacto" class="text-white/90 hover:text-[#D19E66] transition-colors py-1">Contacto</a>
+            </nav>
+
+            <div class="flex items-center space-x-3">
+                <a href="https://wa.me/5491149704626" target="_blank" title="WhatsApp Directo" class="w-11 h-11 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-md transform hover:scale-105 transition-all">
+                    <i class="fab fa-whatsapp text-2xl"></i>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- HERO SECTION -->
+    <section id="inicio" class="relative py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-[#F3EFE7] to-[#FAF8F5] border-b border-[#A36D3B]/20">
+        <div class="max-w-5xl mx-auto text-center space-y-4">
+            <h1 class="font-serif-title text-3xl sm:text-4xl lg:text-5xl text-[#0C2340] font-bold leading-tight">
+                Encontrá tu lugar ideal
+            </h1>
+            <div class="instagram-arc"></div>
+            <p class="text-gray-600 max-w-2xl mx-auto text-sm sm:text-base pt-2">
+                Asesoramiento inmobiliario profesional. Asistencia personalizada en compra, venta y alquileres.
+            </p>
+
+            <!-- BUSCADOR RÁPIDO -->
+            <div class="mt-8 bg-white p-4 sm:p-6 rounded-2xl shadow-lg border border-[#A36D3B]/30 max-w-4xl mx-auto">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-left text-xs font-semibold text-[#0C2340] uppercase mb-1">Operación</label>
+                        <select id="filter-operacion" onchange="loadProperties()" class="w-full bg-[#FAF8F5] border border-gray-300 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 focus:outline-none focus:border-[#A36D3B]">
+                            <option value="TODOS">Todas las Operaciones</option>
+                            <option value="Alquiler">Alquiler</option>
+                            <option value="Venta">Venta</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-left text-xs font-semibold text-[#0C2340] uppercase mb-1">Tipo de Inmueble</label>
+                        <select id="filter-tipo" onchange="loadProperties()" class="w-full bg-[#FAF8F5] border border-gray-300 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 focus:outline-none focus:border-[#A36D3B]">
+                            <option value="TODOS">Todos los Tipos</option>
+                            <option value="Departamento">Departamento</option>
+                            <option value="Casa">Casa</option>
+                            <option value="PH">PH</option>
+                            <option value="Local">Local</option>
+                            <option value="Terreno">Terreno / Lote</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-left text-xs font-semibold text-[#0C2340] uppercase mb-1">Ubicación</label>
+                        <input id="filter-search" oninput="loadProperties()" type="text" placeholder="Ej: Don Torcuato, Tigre..." class="w-full bg-[#FAF8F5] border border-gray-300 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 focus:outline-none focus:border-[#A36D3B]">
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="loadProperties()" class="w-full bg-[#A36D3B] hover:bg-[#8B5A2B] text-white font-semibold py-2.5 px-4 rounded-lg shadow transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-search"></i> Buscar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CATÁLOGO DE PROPIEDADES -->
+    <main id="propiedades" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow w-full">
+        <div class="flex flex-col sm:flex-row items-center justify-between mb-8 pb-4 border-b border-[#A36D3B]/20">
+            <div>
+                <h2 class="font-serif-title text-3xl sm:text-4xl font-bold text-[#0C2340]">Propiedades Destacadas</h2>
+                <div class="w-16 h-1 bg-[#A36D3B] mt-2 rounded-full"></div>
+            </div>
+            <p class="text-sm text-gray-600 mt-2 sm:mt-0" id="property-count">Cargando catálogo...</p>
+        </div>
+
+        <div id="properties-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <!-- Renderizado dinámico conectado a Supabase -->
+        </div>
+    </main>
+
+    <!-- SECCIÓN TASACIONES -->
+    <section id="tasaciones" class="bg-[#F3EFE7] py-16 border-t border-b border-[#A36D3B]/20">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="bg-white rounded-2xl shadow-xl p-8 sm:p-12 border border-[#A36D3B]/30 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                <div class="space-y-4">
+                    <span class="text-xs font-bold uppercase tracking-widest text-[#A36D3B] bg-[#F3EFE7] px-3 py-1 rounded-md border border-[#A36D3B]/30">Tasaciones Profesionales</span>
+                    <h2 class="font-serif-title text-3xl sm:text-4xl font-bold text-[#0C2340]">¿Querés conocer el valor real de tu propiedad?</h2>
+                    <div class="instagram-arc !mx-0"></div>
+                    <p class="text-gray-600 text-sm leading-relaxed">
+                        Evaluamos tu inmueble en Don Torcuato y alrededores con análisis real de mercado, bajo el aval de la matrícula <strong class="text-[#0C2340]">C.S.I 6219</strong>.
+                    </p>
+                </div>
+                <div>
+                    <form onsubmit="handleTasacionSubmit(event)" class="bg-[#FAF8F5] p-6 rounded-xl border border-[#A36D3B]/20 space-y-4 shadow-inner">
+                        <h3 class="font-serif-title text-xl font-bold text-[#0C2340] border-b border-[#A36D3B]/20 pb-2">Solicitá tu Tasación</h3>
+                        <input id="tas-name" type="text" placeholder="Nombre y Apellido" required class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#A36D3B]">
+                        <input id="tas-phone" type="tel" placeholder="Teléfono / WhatsApp" required class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#A36D3B]">
+                        <textarea id="tas-desc" placeholder="Ubicación / Características de la propiedad..." rows="3" required class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#A36D3B]"></textarea>
+                        <button type="submit" class="w-full bg-[#0C2340] hover:bg-[#071527] text-white font-semibold py-2.5 rounded-lg transition-all text-sm shadow">
+                            Enviar Solicitud por WhatsApp
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer id="contacto" class="bg-[#0C2340] text-white py-12 border-t-2 border-[#A36D3B]">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4">
+            <h2 class="font-serif-title text-2xl font-bold tracking-widest">HERRERA INMOBILIARIA</h2>
+            <p class="text-xs text-[#D19E66] tracking-wider">Don Torcuato, Buenos Aires | Matrícula C.S.I 6219</p>
+            <p class="text-xs text-white/60 pt-4">&copy; <span id="year"></span> Herrera Estudio Inmobiliario. Todos los derechos reservados.</p>
+        </div>
+    </footer>
+
+    <!-- MODAL DETALLE -->
+    <div id="modal-detail" class="fixed inset-0 z-50 bg-black/70 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-2xl lg:max-w-6xl w-full overflow-hidden shadow-2xl relative border border-[#A36D3B]/30">
+            <button onclick="closeDetailModal()" class="absolute top-4 right-4 bg-[#0C2340] text-white w-9 h-9 rounded-full flex items-center justify-center hover:bg-[#A36D3B] transition-all z-10 shadow">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="max-h-[90vh] overflow-y-auto lg:overflow-hidden lg:flex">
+                <div class="relative bg-[#F3EFE7] lg:w-[60%] lg:shrink-0 lg:flex lg:flex-col">
+                    <div class="relative h-[42vh] min-h-[250px] max-h-[520px] sm:h-[52vh] lg:h-[68vh] lg:min-h-[400px] lg:max-h-[680px] flex items-center justify-center overflow-hidden">
+                        <img id="detail-img" src="" alt="Propiedad" class="w-full h-full object-contain" onclick="toggleDetailGallery()" title="Tocá para pausar o reanudar las fotos" draggable="false">
+                        <span id="detail-badge" class="absolute top-4 left-4 bg-[#0C2340] text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg border border-white/70">Operación</span>
+                        <span id="detail-status-badge" class="hidden absolute bottom-4 right-4 bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg border border-white/70"></span>
+                        <button type="button" onclick="navigateDetailGallery(-1)" aria-label="Foto anterior" class="absolute left-3 top-1/2 -translate-y-1/2 bg-[#0C2340]/90 hover:bg-[#0C2340] text-white w-10 h-10 rounded-full shadow flex items-center justify-center"><i class="fas fa-chevron-left"></i></button>
+                        <button type="button" onclick="navigateDetailGallery(1)" aria-label="Foto siguiente" class="absolute right-3 top-1/2 -translate-y-1/2 bg-[#0C2340]/90 hover:bg-[#0C2340] text-white w-10 h-10 rounded-full shadow flex items-center justify-center"><i class="fas fa-chevron-right"></i></button>
+                        <span id="detail-gallery-counter" class="absolute bottom-3 left-3 bg-[#0C2340]/85 text-white text-xs px-2.5 py-1 rounded-full">1 / 1</span>
+                        <button id="detail-gallery-toggle" type="button" onclick="toggleDetailGallery()" aria-label="Pausar pase automático" class="absolute bottom-3 right-3 bg-[#0C2340]/90 hover:bg-[#0C2340] text-white w-9 h-9 rounded-full shadow flex items-center justify-center"><i class="fas fa-pause"></i><span class="sr-only">Pausar pase automático</span></button>
+                    </div>
+                    <div id="detail-thumbnails" class="flex gap-2 overflow-x-auto px-4 py-3 bg-white border-b border-[#A36D3B]/20 lg:flex-wrap lg:overflow-y-auto lg:max-h-[120px]" aria-label="Miniaturas de fotografías"></div>
+                </div>
+                <div class="p-5 sm:p-6 space-y-4 lg:flex-1 lg:min-w-0 lg:max-h-[90vh] lg:overflow-y-auto">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span id="detail-location" class="text-xs font-semibold text-[#A36D3B] uppercase tracking-wider block mb-1">Ubicación</span>
+                            <h3 id="detail-title" class="font-serif-title text-2xl font-bold text-[#0C2340]">Título</h3>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] uppercase tracking-wider text-gray-400 block font-medium">VALOR</span>
+                            <span id="detail-price" class="text-2xl font-bold font-serif-title text-[#0C2340]">USD 0</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-[#FAF8F5] p-3 rounded-xl border border-[#A36D3B]/20 text-center text-xs text-gray-700 font-medium">
+                        <div><strong id="detail-type" class="block text-[#0C2340] font-bold text-sm">Casa</strong>Tipo</div>
+                        <div><strong id="detail-amb" class="block text-[#0C2340] font-bold text-sm">-</strong>Ambientes</div>
+                        <div><strong id="detail-dorm" class="block text-[#0C2340] font-bold text-sm">-</strong>Dormitorios</div>
+                        <div><strong id="detail-bath" class="block text-[#0C2340] font-bold text-sm">-</strong>Baños</div>
+                        <div><strong id="detail-sup" class="block text-[#0C2340] font-bold text-sm">-</strong>Superficie</div>
+                    </div>
+                    <div>
+                        <h4 class="font-serif-title font-bold text-[#0C2340] text-lg mb-1">Descripción</h4>
+                        <p id="detail-desc" class="text-gray-600 text-sm leading-relaxed whitespace-pre-line">Descripción de la propiedad...</p>
+                    </div>
+                    <div class="pt-4 border-t border-gray-200">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <a id="detail-wa-btn" href="#" target="_blank" rel="noopener" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-sm">
+                                <i class="fab fa-whatsapp text-lg"></i> Consultar por WhatsApp
+                            </a>
+                            <a id="detail-share-btn" href="#" target="_blank" rel="noopener" class="w-full bg-[#0C2340] hover:bg-[#071527] text-white font-semibold py-3 px-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-sm">
+                                <i class="fas fa-share-alt"></i> Compartir propiedad
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
